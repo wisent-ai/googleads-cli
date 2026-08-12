@@ -12,7 +12,10 @@
     "googleads": "./src/cli.js"
   },
   "exports": {
-    ".": "./src/index.js"
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
   },
   "files": ["src", "LICENSE"],
   "engines": { "node": ">=20" }
