@@ -1,0 +1,19 @@
+{
+  "name": "@wisent-ai/googleads-cli",
+  "version": "0.1.0",
+  "description": "Google Ads reporting and campaign operations CLI",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wisent-ai/googleads-cli.git"
+  },
+  "bin": {
+    "googleads": "./src/cli.js"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": ["src", "LICENSE"],
+  "engines": { "node": ">=20" }
+}
