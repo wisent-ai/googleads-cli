@@ -1,11 +1,13 @@
 [automation]
 managed = true
-source_fingerprint = "c3c2a223bd0130f8"
+source_fingerprint = "be823371c47480ba"
 category = "developer"
+copy_status = "missing"
+approved_in = ""
 
 [banner]
-title = "Googleads CLI builds. You ship faster."
-description = "Google Ads reporting and campaign operations CLI"
+title = "Googleads CLI"
+description = ""
 product = "Wisent"
 url = "wisent.com"
 theme = "dark"
