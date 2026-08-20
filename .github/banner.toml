@@ -1,0 +1,15 @@
+[automation]
+managed = true
+source_fingerprint = "c3c2a223bd0130f8"
+category = "developer"
+
+[banner]
+title = "Googleads CLI builds. You ship faster."
+description = "Google Ads reporting and campaign operations CLI"
+product = "Wisent"
+url = "wisent.com"
+theme = "dark"
+layout = "signal-left"
+art_seed = "googleads-cli"
+width = 1584
+height = 396
