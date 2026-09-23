@@ -1,0 +1,17 @@
+[automation]
+managed = true
+source_fingerprint = "be823371c47480ba"
+category = "developer"
+copy_status = "missing"
+approved_in = ""
+
+[banner]
+title = "Googleads CLI"
+description = ""
+product = "Wisent"
+url = "wisent.com"
+theme = "dark"
+layout = "signal-left"
+art_seed = "googleads-cli"
+width = 1584
+height = 396
