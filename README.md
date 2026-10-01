@@ -36,19 +36,20 @@ The command line reads credentials from the environment; the JavaScript API acce
 
 ## Quick start
 
-Requires Node.js 20 or newer, a Google Ads developer token, and an OAuth access token authorized for the requested account.
+Requires Node.js 20 or newer, the `skarbiec` executable, and two Skarbiec items holding a Google Ads developer token and an OAuth access token authorized for the requested account.
 
 ```bash
 git clone https://github.com/wisent-ai/googleads-cli.git
 cd googleads-cli
-export GOOGLE_ADS_DEVELOPER_TOKEN='...'
-export GOOGLE_ADS_ACCESS_TOKEN='...'
-node src/cli.js accounts
-node src/cli.js campaigns --customer 123-456-7890
-node src/cli.js metrics --customer 123-456-7890 --from 2026-08-01 --to 2026-08-11
+CREDS='--developer-token google-ads#developer_token --access-token google-ads#access_token'
+node src/cli.js accounts $CREDS
+node src/cli.js campaigns --customer 123-456-7890 $CREDS
+node src/cli.js metrics --customer 123-456-7890 --from 2026-08-01 --to 2026-08-11 $CREDS
 ```
 
-For manager-account access, set `GOOGLE_ADS_LOGIN_CUSTOMER_ID`. Override the API version with `GOOGLE_ADS_API_VERSION` when Google advances the contract.
+Each credential flag names a Skarbiec `ITEM#FIELD`; the CLI reads it with `skarbiec get ITEM --field FIELD` (`SKARBIEC_BIN` names another executable). No token is accepted in argv or the environment. For manager-account access pass `--login-customer <id>`; pass `--api-version` when Google advances the contract.
+
+A wrong invocation (unknown command, missing or malformed credential reference) exits 2; a failed Skarbiec read or API call exits 1 with its cause.
 
 Library use:
 
