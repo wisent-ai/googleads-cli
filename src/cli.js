@@ -2,6 +2,10 @@
 
 import { createGoogleAdsClient } from './index.js'
 
+// The invocation itself is wrong: exit 2 with the usage; any other failure
+// exits 1 with its own message (cli.md rule 10).
+class UsageError extends Error {}
+
 function usage() {
   return `googleads-cli
 
@@ -25,6 +29,8 @@ async function main() {
     console.log(usage())
     return
   }
+  const known = args[0] === 'accounts' || args[0] === 'campaigns' || args[0] === 'metrics' || args[0] === 'query'
+  if (!known) throw new UsageError(`Unknown command: ${args[0]}\n\n${usage()}`)
   const client = createGoogleAdsClient({
     developerToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
     accessToken: process.env.GOOGLE_ADS_ACCESS_TOKEN,
@@ -36,11 +42,11 @@ async function main() {
   else if (args[0] === 'campaigns') result = await client.listCampaigns(value(args, '--customer'), { dateFrom: value(args, '--from'), dateTo: value(args, '--to') })
   else if (args[0] === 'metrics') result = await client.reportMetrics(value(args, '--customer'), value(args, '--from'), value(args, '--to'))
   else if (args[0] === 'query') result = await client.search(value(args, '--customer'), value(args, '--gaql'))
-  else throw new Error(`Unknown command: ${args[0]}\n\n${usage()}`)
+  else throw new UsageError(`Unknown command: ${args[0]}\n\n${usage()}`)
   console.log(JSON.stringify(result, null, 2))
 }
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error))
-  process.exitCode = 1
+  process.exitCode = error instanceof UsageError ? 2 : 1
 })
