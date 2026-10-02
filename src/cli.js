@@ -41,17 +41,44 @@ function render(result, text) {
   return lines.join('\n')
 }
 
+// The flags each command reads and the ones it cannot run without; anything
+// else is refused with exit 2 before a credential is read (rules 10, 12).
+const SHARED = '--developer-token --access-token --login-customer --api-version'.split(' ')
+const FLAGS = {
+  accounts: SHARED,
+  campaigns: SHARED.concat('--customer --from --to'.split(' ')),
+  metrics: SHARED.concat('--customer --from --to'.split(' ')),
+  query: SHARED.concat('--customer --gaql'.split(' ')),
+}
+const REQUIRED = {
+  accounts: '--developer-token --access-token'.split(' '),
+  campaigns: '--developer-token --access-token --customer'.split(' '),
+  metrics: '--developer-token --access-token --customer --from --to'.split(' '),
+  query: '--developer-token --access-token --customer --gaql'.split(' '),
+}
+
+function checkInvocation(command, args) {
+  const known = FLAGS[command]
+  if (!known) throw new UsageError(`Unknown command: ${command}\n\n${usage()}`)
+  for (let index = 1; index < args.length; index += 1) {
+    const arg = args[index]
+    if (arg === '--text') continue
+    if (!known.includes(arg)) throw new UsageError(`googleads ${command} does not take ${arg}; it takes ${known.join(', ')}, --text\n\n${usage()}`)
+    if (index + 1 >= args.length) throw new UsageError(`${arg} needs a value\n\n${usage()}`)
+    index += 1
+  }
+  for (const flag of REQUIRED[command]) {
+    if (!value(args, flag)) throw new UsageError(`googleads ${command} requires ${flag}\n\n${usage()}`)
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2)
   if (!args.length || args.includes('--help') || args.includes('-h')) {
     console.log(usage())
     return
   }
-  const known = args[0] === 'accounts' || args[0] === 'campaigns' || args[0] === 'metrics' || args[0] === 'query'
-  if (!known) throw new UsageError(`Unknown command: ${args[0]}\n\n${usage()}`)
-  for (const flag of ['--developer-token', '--access-token']) {
-    if (!value(args, flag)) throw new UsageError(`${flag} ITEM#FIELD is required\n\n${usage()}`)
-  }
+  checkInvocation(args[0], args)
   const client = createGoogleAdsClient({
     developerToken: readCredential(value(args, '--developer-token'), '--developer-token'),
     accessToken: readCredential(value(args, '--access-token'), '--access-token'),
