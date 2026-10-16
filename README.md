@@ -69,12 +69,20 @@ prints the usage and exits 0.
 
 `node --test 'tests/**/*.test.mjs'` runs the CLI journeys: every wrong invocation above, each naming a credentials file the CLI would refuse if it read it; tokens in `GOOGLE_ADS_DEVELOPER_TOKEN` and `GOOGLE_ADS_ACCESS_TOKEN`, which are not read; malformed references, a role Stado has no secret for, credentials files refused for permissions, shape and missing fields, and a file's tokens sent to the Google Ads API, whose refusal of them is reported.
 
+Every Google Ads answer is read strictly. A body that is not JSON, such as a
+proxy's error page, is refused with `Google Ads API returned HTTP <status> with
+a body that is not JSON (<cause>): <body>`, never read as no data; a refusal
+is its `error.message`, or `Google Ads API returned HTTP <status>: <body>`
+when it carries none. `tests/api/answers.test.mjs` hands the client a fetch
+answering with each of these and checks that every searchStream batch is read.
+
 With `GOOGLEADS_TEST_DEFECT` and `GOOGLEADS_TEST_CRITERION` set together, a run
 on committed source that passes every case writes `criterion.json` under
-`.build/real-tests/cli-usage/<stamp>/` (tests/cli) or
-`.build/real-tests/credentials/<stamp>/` (tests/credentials): the revision, the
-digests of Node and of the test, and every CLI run with its arguments, exit
-status and standard error. Setting only one of them fails the run.
+`.build/real-tests/cli-usage/<stamp>/` (tests/cli),
+`.build/real-tests/credentials/<stamp>/` (tests/credentials) or
+`.build/real-tests/api-answers/<stamp>/` (tests/api): the revision, the digests
+of Node and of the test, and every run with what it observed. Setting only one
+of them fails the run.
 
 Library use:
 
