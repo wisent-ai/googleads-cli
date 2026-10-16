@@ -61,15 +61,18 @@ Without Stado, pass `--credentials-file PATH`: a JSON object of roles, each an o
 
 owned by the user running the CLI and closed to group and others (`chmod go= PATH`). Both references are read from it. A file owned by someone else, open to group or others, not JSON, or without the role or a non-empty string field is refused by name with exit 1. No token is accepted in argv or the environment. For manager-account access pass `--login-customer <id>`; pass `--api-version` when Google advances the contract.
 
-An unknown command, missing option value or duplicate valued option exits 2
-before reading credentials. A reference that is not `ROLE#FIELD` also exits 2;
-a failed credential read or API call exits 1 with its cause.
+An unknown command, an option the command does not take, a missing option
+value, a duplicate valued option or a missing required option exits 2 with the
+usage before reading credentials. A reference that is not `ROLE#FIELD` also
+exits 2; a failed credential read or API call exits 1 with its cause. `--help`
+prints the usage and exits 0.
 
-`node --test 'tests/**/*.test.mjs'` runs the CLI journeys: malformed references, a role Stado has no secret for, credentials files refused for permissions, shape and missing fields, and a file's tokens sent to the Google Ads API, whose refusal of them is reported.
+`node --test 'tests/**/*.test.mjs'` runs the CLI journeys: every wrong invocation above, each naming a credentials file the CLI would refuse if it read it; malformed references, a role Stado has no secret for, credentials files refused for permissions, shape and missing fields, and a file's tokens sent to the Google Ads API, whose refusal of them is reported.
 
 With `GOOGLEADS_TEST_DEFECT` and `GOOGLEADS_TEST_CRITERION` set together, a run
-on committed source that passes every case writes
-`.build/real-tests/credentials/<stamp>/criterion.json`: the revision, the
+on committed source that passes every case writes `criterion.json` under
+`.build/real-tests/cli-usage/<stamp>/` (tests/cli) or
+`.build/real-tests/credentials/<stamp>/` (tests/credentials): the revision, the
 digests of Node and of the test, and every CLI run with its arguments, exit
 status and standard error. Setting only one of them fails the run.
 
