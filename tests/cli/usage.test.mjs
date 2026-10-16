@@ -3,7 +3,10 @@
 // and names a credentials file open to group and others, which the CLI
 // refuses with exit 1 whenever it reads it (the last case shows that
 // refusal); so a case that exits 2 without naming the file never reached the
-// credential. --help prints the usage on standard output and exits 0.
+// credential. --help prints the usage on standard output and exits 0. Tokens
+// in the environment (GOOGLE_ADS_DEVELOPER_TOKEN, GOOGLE_ADS_ACCESS_TOKEN) are
+// not credentials: without the reference flags the command is misuse, and
+// neither token reaches output.
 //
 // A defect register that measures a repair by this run names the defect and
 // its criterion in GOOGLEADS_TEST_DEFECT and GOOGLEADS_TEST_CRITERION; when
@@ -51,8 +54,15 @@ const uncommitted = git('status', '--porcelain', '--', 'src', 'tests/cli')
 assert.ok(!defectId || uncommitted === '', 'commit the CLI and this test before qualification')
 
 function googleads(...args) {
-  const run = spawnSync(process.execPath, [join(root, 'src', 'cli.js'), ...args], { encoding: 'utf8' })
-  runs.push({ args, exit: run.status, stderr: run.stderr })
+  return googleadsWith({}, ...args)
+}
+
+function googleadsWith(variables, ...args) {
+  const run = spawnSync(process.execPath, [join(root, 'src', 'cli.js'), ...args], {
+    encoding: 'utf8',
+    env: { ...process.env, ...variables },
+  })
+  runs.push({ args, variables: Object.keys(variables), exit: run.status, stderr: run.stderr })
   return run
 }
 
@@ -110,6 +120,13 @@ check('--help prints the usage on standard output and exits 0', () => {
   assert.ok(run.stdout.startsWith('googleads-cli'), run.stdout)
   assert.match(run.stdout, /Usage:/)
   assert.equal(run.stderr, '')
+})
+
+check('tokens in the environment are not read: without the reference flags the command is misuse', () => {
+  const token = `googleads-cli-environment-${randomUUID()}`
+  const run = googleadsWith({ GOOGLE_ADS_DEVELOPER_TOKEN: token, GOOGLE_ADS_ACCESS_TOKEN: token }, 'accounts')
+  misuse(run, 'googleads accounts requires --developer-token')
+  assert.ok(!run.stderr.includes(token), 'the token never reaches output')
 })
 
 check('the same invocation, once correct, reads the file and refuses it with exit 1', () => {
