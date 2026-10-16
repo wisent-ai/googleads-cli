@@ -67,6 +67,12 @@ a failed credential read or API call exits 1 with its cause.
 
 `node --test 'tests/**/*.test.mjs'` runs the CLI journeys: malformed references, a role Stado has no secret for, credentials files refused for permissions, shape and missing fields, and a file's tokens sent to the Google Ads API, whose refusal of them is reported.
 
+With `GOOGLEADS_TEST_DEFECT` and `GOOGLEADS_TEST_CRITERION` set together, a run
+on committed source that passes every case writes
+`.build/real-tests/credentials/<stamp>/criterion.json`: the revision, the
+digests of Node and of the test, and every CLI run with its arguments, exit
+status and standard error. Setting only one of them fails the run.
+
 Library use:
 
 ```js
