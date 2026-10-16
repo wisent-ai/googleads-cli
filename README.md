@@ -17,15 +17,19 @@
 
 **Google Ads CLI is a small Google Ads API client for accessible-customer discovery, GAQL queries, campaign inventory, and dated performance reporting.**
 
-The command line reads credentials from the environment; the JavaScript API accepts an injected `fetch` implementation and returns normalized records.
+The command line reads credentials by the role a secret plays, through Stado or an owner-only credentials file; the JavaScript API accepts an injected `fetch` implementation and returns normalized records.
 
 ## Included
 
 - accessible Google Ads customer IDs;
 - arbitrary caller-supplied GAQL queries;
-- campaign inventory with status, channel type, and core metrics;
+- campaign inventory with status, channel type, and core metrics; `campaigns`
+  takes `--from` and `--to` together or neither;
 - campaign metrics by date;
-- normalized customer IDs and campaign records.
+- normalized customer IDs and campaign records; a field or metric the API
+  answer omits is `null`, never an invented empty string or zero;
+- every answer read strictly: a body that is not JSON is refused with its
+  status, the parse cause and the body.
 
 ## Explicit non-goals
 
@@ -36,7 +40,7 @@ The command line reads credentials from the environment; the JavaScript API acce
 
 ## Quick start
 
-Requires Node.js 20 or newer, the `skarbiec` executable, and two Skarbiec items holding a Google Ads developer token and an OAuth access token authorized for the requested account.
+Requires Node.js 20 or newer and a Google Ads developer token and an OAuth access token authorized for the requested account, held either by Stado credential items tagged with a role or in an owner-only credentials file.
 
 ```bash
 git clone https://github.com/wisent-ai/googleads-cli.git
@@ -47,9 +51,21 @@ node src/cli.js campaigns --customer 123-456-7890 $CREDS
 node src/cli.js metrics --customer 123-456-7890 --from 2026-08-01 --to 2026-08-11 $CREDS
 ```
 
-Each credential flag names a Skarbiec `ITEM#FIELD`; the CLI reads it with `skarbiec get ITEM --field FIELD` (`SKARBIEC_BIN` names another executable). No token is accepted in argv or the environment. For manager-account access pass `--login-customer <id>`; pass `--api-version` when Google advances the contract.
+Each credential flag names a credential reference `ROLE#FIELD`: the field of the secret that plays the role, not the name of a vault item, so renaming or rotating the item changes no invocation. The CLI reads it with `stado credentials get --role ROLE --field FIELD`; Stado refuses a role no item plays, or one several items play, and the CLI exits 1 with that refusal.
 
-A wrong invocation (unknown command, missing or malformed credential reference) exits 2; a failed Skarbiec read or API call exits 1 with its cause.
+Without Stado, pass `--credentials-file PATH`: a JSON object of roles, each an object of fields,
+
+```json
+{ "google-ads": { "developer_token": "…", "access_token": "…" } }
+```
+
+owned by the user running the CLI and closed to group and others (`chmod go= PATH`). Both references are read from it. A file owned by someone else, open to group or others, not JSON, or without the role or a non-empty string field is refused by name with exit 1. No token is accepted in argv or the environment. For manager-account access pass `--login-customer <id>`; pass `--api-version` when Google advances the contract.
+
+An unknown command, missing option value or duplicate valued option exits 2
+before reading credentials. A reference that is not `ROLE#FIELD` also exits 2;
+a failed credential read or API call exits 1 with its cause.
+
+`node --test 'tests/**/*.test.mjs'` runs the CLI journeys: malformed references, a role Stado has no secret for, credentials files refused for permissions, shape and missing fields, and a file's tokens sent to the Google Ads API, whose refusal of them is reported.
 
 Library use:
 
@@ -63,9 +79,9 @@ const campaigns = await googleAds.listCampaigns(customerId)
 ## Operational model
 
 - **Transport:** official Google Ads REST API over HTTPS.
-- **Credentials:** environment variables for the CLI; explicit constructor fields for the library.
+- **Credentials:** `ROLE#FIELD` references for the CLI, read through Stado or an owner-only `--credentials-file`; explicit constructor fields for the library.
 - **State:** none.
-- **Output:** JSON to stdout or normalized JavaScript records.
+- **Output:** JSON to stdout, `--text` path-value output, or normalized JavaScript records.
 - **Cost and mutation:** reporting may consume API quota; this release exposes read operations only.
 
 ## Project status and support

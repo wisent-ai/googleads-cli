@@ -2,57 +2,91 @@ export const GOOGLE_ADS_PLATFORM = 'google'
 export const GOOGLE_ADS_DEFAULT_API_VERSION = 'v24'
 
 export function googleAdsCustomerId(value) {
-  const id = String(value ?? '').replaceAll('-', '').trim()
-  if (!/^\d{10}$/u.test(id)) throw new Error('Google Ads customer id must contain 10 digits')
+  if (value === undefined || value === null) throw new Error('Google Ads customer id is required')
+  const id = String(value).replaceAll('-', '').trim()
+  // A Google Ads customer id is ten digits, written with or without dashes:
+  // https://support.google.com/google-ads/answer/1704344
+  if (!/^\d{10}$/u.test(id)) throw new Error(`Google Ads customer id must be ten digits, got ${JSON.stringify(value)}`)
   return id
 }
 
 function requireText(value, label) {
-  const text = String(value ?? '').trim()
+  if (value === undefined || value === null) throw new Error(`${label} is required`)
+  const text = String(value).trim()
   if (!text) throw new Error(`${label} is required`)
   return text
 }
 
-function rowsFromStream(payload) {
-  if (!Array.isArray(payload)) return []
-  return payload.flatMap((batch) => Array.isArray(batch?.results) ? batch.results : [])
+// A field or metric the API answer omits is reported as null, never as a
+// value it did not state.
+function field(value) {
+  if (value === undefined || value === null) return null
+  return String(value)
 }
 
-export function normalizeGoogleAdsCampaign(row = {}) {
-  const campaign = row.campaign && typeof row.campaign === 'object' ? row.campaign : {}
-  const metrics = row.metrics && typeof row.metrics === 'object' ? row.metrics : {}
+function lowered(value) {
+  const text = field(value)
+  if (text === null) return null
+  return text.toLowerCase()
+}
+
+function metric(value) {
+  if (value === undefined || value === null) return null
+  return Number(value)
+}
+
+// searchStream answers a JSON array of batches, each with its results.
+function rowsFromStream(payload) {
+  if (!Array.isArray(payload)) {
+    throw new Error(`Google Ads searchStream answered something other than a list of batches: ${JSON.stringify(payload)}`)
+  }
+  return payload.flatMap((batch) => (Array.isArray(batch?.results) ? batch.results : []))
+}
+
+export function normalizeGoogleAdsCampaign(row) {
+  const campaign = row.campaign
+  const metrics = row.metrics
   return {
-    id: String(campaign.id ?? ''),
-    name: String(campaign.name ?? ''),
-    status: String(campaign.status ?? '').toLowerCase(),
-    channelType: String(campaign.advertisingChannelType ?? '').toLowerCase(),
-    impressions: Number(metrics.impressions ?? 0),
-    clicks: Number(metrics.clicks ?? 0),
-    costMicros: Number(metrics.costMicros ?? 0),
-    conversions: Number(metrics.conversions ?? 0),
-    conversionValue: Number(metrics.conversionsValue ?? 0),
+    id: field(campaign?.id),
+    name: field(campaign?.name),
+    status: lowered(campaign?.status),
+    channelType: lowered(campaign?.advertisingChannelType),
+    impressions: metric(metrics?.impressions),
+    clicks: metric(metrics?.clicks),
+    costMicros: metric(metrics?.costMicros),
+    conversions: metric(metrics?.conversions),
+    conversionValue: metric(metrics?.conversionsValue),
   }
 }
 
-export function createGoogleAdsClient(options = {}) {
+export function createGoogleAdsClient(options) {
   const developerToken = requireText(options.developerToken, 'developerToken')
   const accessToken = requireText(options.accessToken, 'accessToken')
-  const apiVersion = String(options.apiVersion || GOOGLE_ADS_DEFAULT_API_VERSION)
-  const fetchImpl = options.fetch || globalThis.fetch
+  const apiVersion = requireText(options.apiVersion ?? GOOGLE_ADS_DEFAULT_API_VERSION, 'apiVersion')
+  const fetchImpl = options.fetch ?? globalThis.fetch
   if (typeof fetchImpl !== 'function') throw new Error('fetch implementation is required')
   const origin = `https://googleads.googleapis.com/${apiVersion}`
+  const headers = new Headers()
+  headers.set('authorization', `Bearer ${accessToken}`)
+  headers.set('developer-token', developerToken)
+  headers.set('content-type', 'application/json')
+  if (options.loginCustomerId !== undefined) headers.set('login-customer-id', googleAdsCustomerId(options.loginCustomerId))
 
-  async function request(path, init = {}) {
-    const headers = new Headers(init.headers)
-    headers.set('authorization', `Bearer ${accessToken}`)
-    headers.set('developer-token', developerToken)
-    headers.set('content-type', 'application/json')
-    if (options.loginCustomerId) headers.set('login-customer-id', googleAdsCustomerId(options.loginCustomerId))
+  // Every answer is read strictly: a body that is not JSON is refused with
+  // its status, the parse cause and the text, and a refusal without a JSON
+  // error message carries its body.
+  async function request(path, init) {
     const response = await fetchImpl(`${origin}${path}`, { ...init, headers })
-    const body = await response.json().catch(() => null)
+    const text = await response.text()
+    let body
+    try {
+      body = JSON.parse(text)
+    } catch (error) {
+      throw new Error(`Google Ads API returned HTTP ${response.status} with a body that is not JSON (${error.message}): ${text}`)
+    }
     if (!response.ok) {
-      const message = body?.error?.message || `Google Ads API returned HTTP ${response.status}`
-      throw new Error(message)
+      const stated = body?.error?.message
+      throw new Error(typeof stated === 'string' ? stated : `Google Ads API returned HTTP ${response.status}: ${text}`)
     }
     return body
   }
@@ -69,13 +103,23 @@ export function createGoogleAdsClient(options = {}) {
   return {
     async listAccessibleCustomers() {
       const body = await request('/customers:listAccessibleCustomers', { method: 'GET' })
-      return Array.isArray(body.resourceNames) ? body.resourceNames.map((name) => String(name).replace('customers/', '')) : []
+      // An account with access to no customer is answered without resourceNames.
+      if (body.resourceNames === undefined) return []
+      if (!Array.isArray(body.resourceNames)) {
+        throw new Error(`Google Ads listAccessibleCustomers answered resourceNames that are not a list: ${JSON.stringify(body)}`)
+      }
+      return body.resourceNames.map((name) => String(name).replace('customers/', ''))
     },
     search,
-    async listCampaigns(customerId, options = {}) {
-      const dateClause = options.dateFrom && options.dateTo
-        ? ` AND segments.date BETWEEN '${options.dateFrom}' AND '${options.dateTo}'`
-        : ''
+    async listCampaigns(customerId, range) {
+      const { dateFrom, dateTo } = range
+      if ((dateFrom === undefined) !== (dateTo === undefined)) {
+        throw new Error('listCampaigns takes dateFrom and dateTo together, or neither')
+      }
+      let dateClause = ''
+      if (dateFrom !== undefined) {
+        dateClause = ` AND segments.date BETWEEN '${requireText(dateFrom, 'dateFrom')}' AND '${requireText(dateTo, 'dateTo')}'`
+      }
       const rows = await search(customerId, `SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions, metrics.conversions_value FROM campaign WHERE campaign.status != 'REMOVED'${dateClause} ORDER BY campaign.name`)
       return rows.map(normalizeGoogleAdsCampaign)
     },
@@ -83,7 +127,7 @@ export function createGoogleAdsClient(options = {}) {
       const from = requireText(dateFrom, 'dateFrom')
       const to = requireText(dateTo, 'dateTo')
       const rows = await search(customerId, `SELECT segments.date, campaign.id, campaign.name, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions, metrics.conversions_value FROM campaign WHERE segments.date BETWEEN '${from}' AND '${to}' ORDER BY segments.date, campaign.name`)
-      return rows.map((row) => ({ date: String(row.segments?.date ?? ''), ...normalizeGoogleAdsCampaign(row) }))
+      return rows.map((row) => ({ date: field(row.segments?.date), ...normalizeGoogleAdsCampaign(row) }))
     },
   }
 }

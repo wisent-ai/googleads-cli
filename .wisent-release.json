@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "product": "googleads-cli",
+  "releases": false,
+  "reason": "package.json declares no publish configuration and the repository holds no release workflow, so the CLI is run from source and declares no package, image, hosted or versioned artifact publisher."
+}
