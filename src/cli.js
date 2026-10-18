@@ -34,7 +34,7 @@ function render(result, text) {
   const walk = (node, path) => {
     if (Array.isArray(node) && node.length) node.forEach((item, index) => walk(item, `${path}[${index}]`))
     else if (node && typeof node === 'object' && Object.keys(node).length) for (const [key, item] of Object.entries(node)) walk(item, path ? `${path}.${key}` : key)
-    else lines.push(path ? `${path}: ${node === null || typeof node === 'object' ? '-' : node}` : String(node))
+    else lines.push(`${path ? `${path}: ` : ''}${node === null || typeof node === 'object' ? '-' : node}`)
   }
   walk(result, '')
   return lines.join('\n')

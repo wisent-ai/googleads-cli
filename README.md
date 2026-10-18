@@ -104,7 +104,7 @@ const campaigns = await googleAds.listCampaigns(customerId)
 - **Transport:** official Google Ads REST API over HTTPS.
 - **Credentials:** `ROLE#FIELD` references for the CLI, read through Stado or an owner-only `--credentials-file`; explicit constructor fields for the library.
 - **State:** none.
-- **Output:** JSON to stdout, `--text` path-value output, or normalized JavaScript records.
+- **Output:** JSON to stdout, `--text` path-value output (one `path: value` line per field; an empty list, an empty object or a null prints `-`, the whole result included), or normalized JavaScript records.
 - **Cost and mutation:** reporting may consume API quota; this release exposes read operations only.
 
 ## Project status and support
