@@ -76,6 +76,12 @@ is its `error.message`, or `Google Ads API returned HTTP <status>: <body>`
 when it carries none. `tests/api/answers.test.mjs` hands the client a fetch
 answering with each of these and checks that every searchStream batch is read.
 
+Search-stream batches must be objects. An omitted `results` field represents
+an empty batch; a present `results` field must be an array. Malformed batches
+are refused with their payload instead of disappearing from the report.
+Accessible-customer responses must be objects; a null, array or primitive
+response is refused with its payload before customer names are read.
+
 With `GOOGLEADS_TEST_DEFECT` and `GOOGLEADS_TEST_CRITERION` set together, a run
 on committed source that passes every case writes `criterion.json` under
 `.build/real-tests/cli-usage/<stamp>/` (tests/cli),

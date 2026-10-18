@@ -40,7 +40,16 @@ function rowsFromStream(payload) {
   if (!Array.isArray(payload)) {
     throw new Error(`Google Ads searchStream answered something other than a list of batches: ${JSON.stringify(payload)}`)
   }
-  return payload.flatMap((batch) => (Array.isArray(batch?.results) ? batch.results : []))
+  return payload.flatMap((batch) => {
+    if (batch === null || typeof batch !== 'object' || Array.isArray(batch)) {
+      throw new Error(`Google Ads searchStream answered a batch that is not an object: ${JSON.stringify(batch)}`)
+    }
+    if (batch.results === undefined) return []
+    if (!Array.isArray(batch.results)) {
+      throw new Error(`Google Ads searchStream answered results that are not a list: ${JSON.stringify(batch)}`)
+    }
+    return batch.results
+  })
 }
 
 export function normalizeGoogleAdsCampaign(row) {
@@ -103,6 +112,9 @@ export function createGoogleAdsClient(options) {
   return {
     async listAccessibleCustomers() {
       const body = await request('/customers:listAccessibleCustomers', { method: 'GET' })
+      if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+        throw new Error(`Google Ads listAccessibleCustomers answered something other than an object: ${JSON.stringify(body)}`)
+      }
       // An account with access to no customer is answered without resourceNames.
       if (body.resourceNames === undefined) return []
       if (!Array.isArray(body.resourceNames)) {
