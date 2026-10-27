@@ -6,7 +6,14 @@
 //   - an answer that is not JSON is refused with its status, the parse cause
 //     and the text, never read as no data;
 //   - a refusal carrying error.message is reported as that message, and one
-//     without it with its status and whole body.
+//     without it with its status and whole body;
+//   - search terms are read with their campaign, ad group and metrics, and
+//     a campaign id that is not numeric is refused before any request;
+//   - budgets are read with their campaign, an omitted field null;
+//   - keywords are read with match type and quality score, and a campaign id
+//     that is not numeric is refused before any request;
+//   - wasted spend is the terms that cost and converted nothing;
+//   - pacing holds spend to the daily budget over the days asked.
 //
 //   node --test tests/api/answers.test.mjs
 //
@@ -104,6 +111,99 @@ journey('a refusal is its error.message, or its status and whole body', async ()
     message: `Google Ads API returned HTTP ${http.HTTP_STATUS_FORBIDDEN}: ${body}`,
   })
   observed.push({ case: 'refusals', stated, body })
+})
+
+journey('search terms are read with their campaign and ad group, a non-numeric campaign refused', async () => {
+  const term = (text, clicks) => ({
+    searchTermView: { searchTerm: text, status: 'NONE' },
+    campaign: { id: CUSTOMER, name: 'brand' },
+    adGroup: { id: CUSTOMER, name: 'exact' },
+    metrics: { clicks },
+  })
+  const { asked, ads } = client(() => Response.json([{ results: [term('wisent pricing', CUSTOMER), term('free wisent', CUSTOMER)] }]))
+  const [today] = new Date().toISOString().split('T')
+  const terms = await ads.searchTerms(CUSTOMER, today, today, CUSTOMER)
+  assert.deepEqual(terms.map(({ searchTerm }) => searchTerm), ['wisent pricing', 'free wisent'])
+  const [first] = terms
+  assert.equal(first.status, 'none')
+  assert.equal(first.adGroupName, 'exact')
+  assert.equal(first.conversions, null, 'a metric the answer omits is null')
+  const sent = asked.length
+  await assert.rejects(ads.searchTerms(CUSTOMER, today, today, 'brand'), /campaignId must be the campaign's numeric id/u)
+  assert.equal(asked.length, sent, 'the refused campaign id sent no request')
+  observed.push({ case: 'search terms', asked, rows: terms.length })
+})
+
+journey('budgets are read with their campaign, a field the answer omits null', async () => {
+  const { ads } = client(() => Response.json([{ results: [{
+    campaign: { id: CUSTOMER, name: 'brand', status: 'ENABLED' },
+    campaignBudget: { id: CUSTOMER, name: 'daily', amountMicros: CUSTOMER, deliveryMethod: 'STANDARD', explicitlyShared: false },
+  }] }]))
+  const [budget] = await ads.listBudgets(CUSTOMER)
+  assert.equal(budget.campaignName, 'brand')
+  assert.equal(budget.amountMicros, Number(CUSTOMER))
+  assert.equal(budget.deliveryMethod, 'standard')
+  assert.equal(budget.shared, false, 'a budget the answer states unshared is not null')
+  assert.equal(budget.totalAmountMicros, null, 'a total the answer omits is null')
+  observed.push({ case: 'budgets', budget })
+})
+
+journey('keywords are read with match type and quality score, a non-numeric campaign refused', async () => {
+  const { asked, ads } = client(() => Response.json([{ results: [{
+    adGroupCriterion: { criterionId: CUSTOMER, keyword: { text: 'wisent pricing', matchType: 'PHRASE' }, status: 'ENABLED', qualityInfo: { qualityScore: CUSTOMER } },
+    campaign: { id: CUSTOMER, name: 'brand' },
+    adGroup: { id: CUSTOMER, name: 'pricing' },
+    metrics: { clicks: CUSTOMER },
+  }] }]))
+  const [today] = new Date().toISOString().split('T')
+  const [keyword] = await ads.keywords(CUSTOMER, today, today)
+  assert.equal(keyword.keyword, 'wisent pricing')
+  assert.equal(keyword.matchType, 'phrase')
+  assert.equal(keyword.qualityScore, Number(CUSTOMER))
+  assert.equal(keyword.conversions, null, 'a metric the answer omits is null')
+  const sent = asked.length
+  await assert.rejects(ads.keywords(CUSTOMER, today, today, 'brand'), /campaignId must be the campaign's numeric id/u)
+  assert.equal(asked.length, sent, 'the refused campaign id sent no request')
+  observed.push({ case: 'keywords', asked, keyword })
+})
+
+journey('wasted spend is the terms that cost and converted nothing, an unstated one named apart', async () => {
+  const spend = String(CUSTOMER.length)
+  const term = (text, metrics, status = 'NONE') => ({ searchTermView: { searchTerm: text, status }, campaign: { id: CUSTOMER }, metrics })
+  const { ads } = client(() => Response.json([{ results: [
+    term('free wisent', { costMicros: spend, conversions: String(spend - spend) }),
+    term('wisent pricing', { costMicros: spend, conversions: spend }),
+    term('wisent jobs', { costMicros: spend, conversions: String(spend - spend) }, 'EXCLUDED'),
+    term('wisent login', { conversions: String(spend - spend) }),
+  ] }]))
+  const [today] = new Date().toISOString().split('T')
+  const waste = await ads.wasted(CUSTOMER, today, today)
+  assert.deepEqual(waste.terms.map(({ searchTerm }) => searchTerm), ['free wisent'], 'converted and excluded terms are not waste')
+  assert.equal(waste.costMicros, Number(spend))
+  assert.deepEqual(waste.unknown, ['wisent login'], 'a term whose cost is not stated is named apart')
+  observed.push({ case: 'wasted', waste })
+})
+
+journey('pacing holds each campaign\'s spend to its daily budget over the days, the hottest first', async () => {
+  const daily = CUSTOMER.length
+  const results = [
+    { campaign: { id: 'hot', name: 'hot', status: 'ENABLED' }, campaignBudget: { amountMicros: String(daily) }, metrics: { costMicros: String(daily * daily) } },
+    { campaign: { id: 'cold', name: 'cold', status: 'ENABLED' }, campaignBudget: { amountMicros: String(daily) }, metrics: { costMicros: String(daily) } },
+    { campaign: { id: 'total', name: 'total', status: 'ENABLED' }, campaignBudget: { totalAmountMicros: String(daily) }, metrics: { costMicros: String(daily) } },
+  ]
+  const { ads } = client(() => Response.json([{ results }]))
+  const [today] = new Date().toISOString().split('T')
+  const pace = await ads.pacing(CUSTOMER, today, today)
+  assert.deepEqual(pace.map(({ campaignId }) => campaignId), ['hot', 'cold', 'total'], 'the hottest first, the unpaceable last')
+  const [hot, cold, total] = pace
+  assert.equal(hot.days, Number(Boolean(today)), 'one day from a date to itself')
+  assert.equal(hot.pace, daily, 'spent the budget of that many days in one')
+  assert.equal(cold.pace, Number(Boolean(today)), 'spent exactly its one day')
+  assert.equal(total.pace, null, 'a total budget has no daily allowance')
+  // The Unix epoch's day, long before today: a range ending before it starts.
+  const [epoch] = new Date(today.length - today.length).toISOString().split('T')
+  await assert.rejects(ads.pacing(CUSTOMER, today, epoch), /the first not after the second/u)
+  observed.push({ case: 'pacing', pace })
 })
 
 after(() => {

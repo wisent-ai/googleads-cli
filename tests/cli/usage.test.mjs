@@ -112,6 +112,7 @@ check('a valued option given twice exits 2', () => {
 
 check('a missing required option exits 2 naming it', () => {
   misuse(googleads('query', ...CREDENTIAL, '--customer', 'a'), 'googleads query requires --gaql')
+  misuse(googleads('search-terms', ...CREDENTIAL, '--customer', 'a', '--from', 'a'), 'googleads search-terms requires --to')
 })
 
 check('--help prints the usage on standard output and exits 0', () => {

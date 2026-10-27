@@ -26,6 +26,33 @@ The command line reads credentials by the role a secret plays, through Stado or 
 - campaign inventory with status, channel type, and core metrics; `campaigns`
   takes `--from` and `--to` together or neither;
 - campaign metrics by date;
+- every campaign that is not removed with the budget that caps it (`budgets`,
+  `listBudgets`): `budgetId`, `budgetName`, `amountMicros` (daily),
+  `totalAmountMicros` (a campaign total budget), `deliveryMethod` and
+  `shared`, so the spend `metrics` reports reads against what was allowed;
+- the search terms that showed an ad between two dates, the costliest first
+  (`search-terms`, `searchTerms`): each with `searchTerm`, `status` (`added`,
+  `excluded`, `added_excluded` or `none`, whether it is already a keyword or
+  a negative), `campaignId`, `campaignName`, `adGroupId`, `adGroupName` and
+  the metrics `campaigns` reports, so a term spending without converting can
+  be excluded; `--campaign <id>` keeps one campaign's, and an id that is not
+  numeric is refused before any request;
+- the keywords bid on between two dates, the costliest first (`keywords`,
+  `keywords()`): `keyword`, `matchType`, `status`, `qualityScore`, the
+  campaign and ad group and the metrics `campaigns` reports, to read beside
+  the search terms they matched; `--campaign <id>` as for `search-terms`;
+- the search terms that spent without converting (`wasted`, `wasted()`, and
+  `wastedSpend(terms)` over terms already read): `terms`, the costliest first,
+  and `costMicros`, what they cost together, the first place to look for
+  negative keywords; a term already excluded is left out, and one whose cost
+  or conversions the answer omits is named under `unknown` instead of being
+  counted as wasted;
+- each campaign's spend over a date range against its daily budget over the
+  same days (`pacing`, `pacing()`, `budgetPacing(budgets, campaigns, from, to)`):
+  `days`, `allowedMicros` (the daily amount times the days), `spentMicros`
+  and `pace`, spent over allowed (above 1 runs hot, below runs cold), the
+  hottest first; `pace` is `null` for a campaign on a total budget or whose
+  budget or cost the answer omits, and dates out of order are refused;
 - normalized customer IDs and campaign records; a field or metric the API
   answer omits is `null`, never an invented empty string or zero;
 - every answer read strictly: a body that is not JSON is refused with its
@@ -49,6 +76,11 @@ CREDS='--developer-token google-ads#developer_token --access-token google-ads#ac
 node src/cli.js accounts $CREDS
 node src/cli.js campaigns --customer 123-456-7890 $CREDS
 node src/cli.js metrics --customer 123-456-7890 --from 2026-08-01 --to 2026-08-11 $CREDS
+node src/cli.js budgets --customer 123-456-7890 $CREDS
+node src/cli.js search-terms --customer 123-456-7890 --from 2026-08-01 --to 2026-08-11 [--campaign 9876543210] $CREDS
+node src/cli.js keywords --customer 123-456-7890 --from 2026-08-01 --to 2026-08-11 $CREDS
+node src/cli.js wasted --customer 123-456-7890 --from 2026-08-01 --to 2026-08-11 $CREDS
+node src/cli.js pacing --customer 123-456-7890 --from 2026-08-01 --to 2026-08-11 $CREDS
 ```
 
 Each credential flag names a credential reference `ROLE#FIELD`: the field of the secret that plays the role, not the name of a vault item, so renaming or rotating the item changes no invocation. The CLI reads it with `stado credentials get --role ROLE --field FIELD`; Stado refuses a role no item plays, or one several items play, and the CLI exits 1 with that refusal.

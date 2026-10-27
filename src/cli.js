@@ -15,7 +15,12 @@ Usage:
   googleads accounts --developer-token ROLE#FIELD --access-token ROLE#FIELD
   googleads campaigns --customer <id> [--from YYYY-MM-DD --to YYYY-MM-DD] <credentials>
   googleads metrics --customer <id> --from YYYY-MM-DD --to YYYY-MM-DD <credentials>
+  googleads budgets --customer <id> <credentials>
   googleads query --customer <id> --gaql <query> <credentials>
+  googleads search-terms --customer <id> --from YYYY-MM-DD --to YYYY-MM-DD [--campaign <id>] <credentials>
+  googleads keywords --customer <id> --from YYYY-MM-DD --to YYYY-MM-DD [--campaign <id>] <credentials>
+  googleads wasted --customer <id> --from YYYY-MM-DD --to YYYY-MM-DD [--campaign <id>] <credentials>
+  googleads pacing --customer <id> --from YYYY-MM-DD --to YYYY-MM-DD <credentials>
 
 Credentials are references ROLE#FIELD: --developer-token and --access-token each name
 the FIELD of the secret that plays ROLE, read with
@@ -47,13 +52,23 @@ const FLAGS = {
   accounts: SHARED,
   campaigns: SHARED.concat('--customer --from --to'.split(' ')),
   metrics: SHARED.concat('--customer --from --to'.split(' ')),
+  budgets: SHARED.concat(['--customer']),
   query: SHARED.concat('--customer --gaql'.split(' ')),
+  'search-terms': SHARED.concat('--customer --from --to --campaign'.split(' ')),
+  keywords: SHARED.concat('--customer --from --to --campaign'.split(' ')),
+  wasted: SHARED.concat('--customer --from --to --campaign'.split(' ')),
+  pacing: SHARED.concat('--customer --from --to'.split(' ')),
 }
 const REQUIRED = {
   accounts: '--developer-token --access-token'.split(' '),
   campaigns: '--developer-token --access-token --customer'.split(' '),
   metrics: '--developer-token --access-token --customer --from --to'.split(' '),
+  budgets: '--developer-token --access-token --customer'.split(' '),
   query: '--developer-token --access-token --customer --gaql'.split(' '),
+  'search-terms': '--developer-token --access-token --customer --from --to'.split(' '),
+  keywords: '--developer-token --access-token --customer --from --to'.split(' '),
+  wasted: '--developer-token --access-token --customer --from --to'.split(' '),
+  pacing: '--developer-token --access-token --customer --from --to'.split(' '),
 }
 
 // Each valued flag once, each with a value; the flags read by name.
@@ -99,7 +114,12 @@ async function main() {
   let result
   if (command === 'accounts') result = await client.listAccessibleCustomers()
   else if (command === 'campaigns') result = await client.listCampaigns(customer, { dateFrom: options.get('--from'), dateTo: options.get('--to') })
+  else if (command === 'budgets') result = await client.listBudgets(customer)
   else if (command === 'metrics') result = await client.reportMetrics(customer, options.get('--from'), options.get('--to'))
+  else if (command === 'search-terms') result = await client.searchTerms(customer, options.get('--from'), options.get('--to'), options.get('--campaign'))
+  else if (command === 'keywords') result = await client.keywords(customer, options.get('--from'), options.get('--to'), options.get('--campaign'))
+  else if (command === 'wasted') result = await client.wasted(customer, options.get('--from'), options.get('--to'), options.get('--campaign'))
+  else if (command === 'pacing') result = await client.pacing(customer, options.get('--from'), options.get('--to'))
   else result = await client.search(customer, options.get('--gaql'))
   console.log(render(result, rest.includes('--text')))
 }
